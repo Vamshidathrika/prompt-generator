@@ -56,6 +56,21 @@ const App: React.FC = () => {
     setError(null);
   };
 
+  const convertFileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            if (reader.result) {
+                resolve((reader.result as string).split(',')[1]);
+            } else {
+                reject(new Error("Failed to read file."));
+            }
+        };
+        reader.onerror = (error) => reject(error);
+        reader.readAsDataURL(file);
+    });
+  };
+
   const handleGeneratePrompt = useCallback(async () => {
     if (!imageFile) {
       setError('Please upload an image first.');
@@ -67,10 +82,12 @@ const App: React.FC = () => {
     setGeneratedPrompt('');
 
     try {
-      const prompt = await generatePromptFromImage(imageFile);
+      const base64Data = await convertFileToBase64(imageFile);
+      const mimeType = imageFile.type;
+      const prompt = await generatePromptFromImage(base64Data, mimeType);
+      
       setGeneratedPrompt(prompt);
       
-      // Add to history
       const newItem: HistoryItem = { prompt, timestamp: Date.now() };
       setHistory(prevHistory => {
         const updatedHistory = [newItem, ...prevHistory];
@@ -84,7 +101,8 @@ const App: React.FC = () => {
 
     } catch (err) {
       console.error(err);
-      setError('Failed to generate prompt. Please check the console for details and try again.');
+      const errorMessage = (err instanceof Error) ? err.message : 'An unknown error occurred.';
+      setError(`Failed to generate prompt: ${errorMessage}`);
     } finally {
       setIsLoading(false);
     }
